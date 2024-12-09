@@ -1,6 +1,6 @@
 import pdb
 from bpe_tokenizer import Tokenizer
-# from transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer
 
 
 def main():
