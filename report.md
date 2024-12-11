@@ -1,4 +1,4 @@
-# 1. Tokenization
+# 1. Tokenization（10分）
 # 1.1 实现BPE，训练Tokenizer（6分）
 ## 【1分】在实验报告中简要概述一下BPE算法和基于BPE算法训练LLM tokenizer的流程。
 ### BPE算法概述
@@ -53,17 +53,17 @@ BPE算法 (Byte Pair Encoding) 是一种基于统计的方法，最初用于文�
   在Python中，可以使用`ord()`函数查看字符的Unicode编码。`ord()`函数返回一个字符对应的Unicode码点。
 
   ```python
-  print(ord('北'))  # 输出: 22823
-  print(ord('大'))  # 输出: 27169
+  print(ord('北'))  # 22823
+  print(ord('大'))  # 27169
   ```
 
 - **将Unicode转换成字符：**
   要将Unicode码点转换回字符，可以使用`chr()`函数。`chr()`函数接受一个Unicode码点，返回对应的字符。
 
   ```python
-  print(chr(22823))  # 输出: 北
-  print(chr(27169))  # 输出: 大
-  print(chr(22411))  # 输出: 查（对应Unicode码为22411）
+  print(chr(22823))  # 北
+  print(chr(27169))  # 大
+  print(chr(22411))  # 查
   ```
 
 ## 1.2.2 Tokenizer的vocab size大和小分别有什么好处和坏处？
@@ -116,3 +116,6 @@ YAML相比JSON具有更简洁的语法，尤其是在处理复杂的嵌套结构
 ## 1.2.10 为什么 LLM 实际上不是端到端的语言建模？
 
 LLM虽然是在预训练阶段通过大量的文本数据进行训练的，但它的生成过程并不是完全端到端的语言建模。因为LLM的目标是预测下一个词或标记，并生成连贯的文本，而不是执行某种特定的任务或者逻辑推理。端到端的语言建模通常意味着模型能够在一个输入到输出的过程中，经过少量的手动干预或规则，直接得到正确的输出。而LLM往往需要较长的上下文信息，且它的输出依赖于训练数据中的概率分布，而不是明确的规则推理。
+
+
+# 2. LLM Implementation（10分）
