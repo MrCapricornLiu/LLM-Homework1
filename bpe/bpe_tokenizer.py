@@ -80,17 +80,3 @@ class Tokenizer:
         return ''.join(ids).replace('</w>', ' ').strip()
 
 
-# # 示例文本
-# text = "low lower newest lowest"
-
-# # 初始化并训练tokenizer
-# tokenizer = Tokenizer()
-# tokenizer.train(text, vocab_size=10)
-
-# # 编码示例文本
-# encoded = tokenizer.encode("lowest")
-# print("Encoded:", encoded)
-
-# # 解码回文本
-# decoded = tokenizer.decode(encoded)
-# print("Decoded:", decoded)

@@ -1,7 +1,10 @@
 import pdb
+import os
 from bpe_tokenizer import Tokenizer
 from transformers import GPT2Tokenizer
 
+os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
+os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
 
 def main():
     # 读取manual.txt文件内容
@@ -20,7 +23,7 @@ def main():
     print("用它来encode再decode manual.txt，检查与原始manual.txt是否完全一致？")
     print("答案：", text == decoded_text)
 
-    pdb.set_trace()
+    # pdb.set_trace()
     # 加载GPT-2的tokenizer
     gpt2_tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
@@ -44,6 +47,8 @@ def main():
 
     print("BPE Tokenizer for Sentence 2:", encoded_bpe_2[:10], "Total tokens:", len(encoded_bpe_2))
     print("GPT-2 Tokenizer for Sentence 2:", encoded_gpt2_2[:10], "Total tokens:", len(encoded_gpt2_2))
+
+
 
 
 if __name__ == '__main__':
