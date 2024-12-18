@@ -17,6 +17,7 @@ class CausalSelfAttention(nn.Module):
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
         # 输出的线性投影层
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_proj.NANOGPT_SCALE_INIT = 1  # 添加NANOGPT_SCALE_INIT属性，用于权重初始化
         # 注意力头的数量
         self.n_head = config.n_head
         # 嵌入维度
@@ -31,7 +32,6 @@ class CausalSelfAttention(nn.Module):
         # nh为头数，hs为每个头的维度，C = nh * hs
         qkv = self.c_attn(x)
         q, k, v = qkv.split(self.n_embd, dim=2)
-        # 重塑并转置以适应多头注意力的计算
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
@@ -62,6 +62,7 @@ class MLP(nn.Module):
         self.gelu = nn.GELU(approximate='tanh')
         # 第二层线性变换，将维度缩回原始大小
         self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd)
+        self.c_proj.NANOGPT_SCALE_INIT = 1  # 添加NANOGPT_SCALE_INIT属性，用于权重初始化
 
     def forward(self, x):
         x = self.c_fc(x)
@@ -119,8 +120,25 @@ class GPT(nn.Module):
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),  # 多层Transformer块
             ln_f = nn.LayerNorm(config.n_embd),  # 最终层归一化
         ))
-        # 语言模型头
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+
+        # weight sharing scheme
+        self.transformer.wte.weight = self.lm_head.weight  # 共享词嵌入和语言模型头的权重
+
+        # init params
+        self.apply(self._init_weights)  # 初始化所有参数
+
+    def _init_weights(self, module):
+        """初始化模型参数"""
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, 'NANOGPT_SCALE_INIT'):
+                std *= (2 * self.config.n_layer) ** -0.5  # 根据层数调整标准差
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)  # 正态分布初始化权重
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)  # 偏置初始化为零
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)  # 正态分布初始化嵌入权重
 
     def forward(self, idx, targets=None):
         # idx的形状为 (B, T)
@@ -196,6 +214,41 @@ class GPT(nn.Module):
         return model
 
 # -----------------------------------------------------------------------------
+import tiktoken
+
+# -----------------------------------------------------------------------------
+# 数据加载与训练循环
+
+class DataLoaderLite:
+    def __init__(self, B, T):
+        self.B = B
+        self.T = T
+
+        # at init load tokens from disk and store them in memory
+        with open('input.txt', 'r') as f:
+            text = f.read()
+        enc = tiktoken.get_encoding('gpt2')
+        tokens = enc.encode(text)
+        self.tokens = torch.tensor(tokens)
+        print(f"loaded {len(self.tokens)} tokens")
+        print(f"1 epoch = {len(self.tokens) // (B * T)} batches")
+
+        # state
+        self.current_position = 0
+
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_position : self.current_position+B*T+1]
+        x = (buf[:-1]).view(B, T)  # 输入序列，形状 (B, T)
+        y = (buf[1:]).view(B, T)   # 目标序列，形状 (B, T)
+        # advance the position in the tensor
+        self.current_position += B * T
+        # if loading the next batch would be out of bounds, reset
+        if self.current_position + (B * T + 1) > len(self.tokens):
+            self.current_position = 0
+        return x, y
+
+# -----------------------------------------------------------------------------
 # 设备检测与模型加载
 
 # 尝试自动检测设备
@@ -204,23 +257,19 @@ if torch.cuda.is_available():
     device = "cuda"
 elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     device = "mps"
-print(f"使用设备: {device}")
+print(f"using device: {device}")
+
+# -----------------------------------------------------------------------------
+# 设置随机种子
+
+torch.manual_seed(1337)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1337)
 
 # -----------------------------------------------------------------------------
 # 数据加载与训练循环
 
-# 获取一个数据批次
-import tiktoken
-enc = tiktoken.get_encoding('gpt2')
-with open('input.txt', 'r') as f:
-    text = f.read()
-text = text[:1000]  # 截取前1000个字符
-tokens = enc.encode(text)  # 对文本进行编码
-B, T = 4, 32  # 批次大小和序列长度
-buf = torch.tensor(tokens[:B*T + 1])  # 创建缓冲区，包含B*T+1个token
-buf = buf.to(device)
-x = buf[:-1].view(B, T)  # 输入序列，形状 (B, T)
-y = buf[1:].view(B, T)   # 目标序列，形状 (B, T)
+train_loader = DataLoaderLite(B=4, T=32)
 
 # 初始化模型并移动到设备
 model = GPT(GPTConfig())
@@ -231,11 +280,13 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 
 # 训练循环，进行50步优化
 for i in range(50):
+    x, y = train_loader.next_batch()
+    x, y = x.to(device), y.to(device)
     optimizer.zero_grad()          # 清空梯度
     logits, loss = model(x, y)     # 前向传播，获取logits和损失
     loss.backward()                # 反向传播，计算梯度
     optimizer.step()               # 更新模型参数
-    print(f"step {i}, loss: {loss.item()}")  # 打印当前步数和损失
+    print(f"step {i}, loss: {loss.item()}")  # 打印当前步数和损失值
 
 # 训练完成后退出程序，防止后续生成代码执行
 import sys; sys.exit(0)
@@ -258,7 +309,7 @@ torch.cuda.manual_seed(42)     # 设置CUDA随机种子
 while x.size(1) < max_length:
     # 前向传播获取logits
     with torch.no_grad():
-        logits = model(x)[0]   # 获取logits，形状 (B, T, vocab_size)
+        logits, _ = model(x)   # 获取logits，形状 (B, T, vocab_size)
         # 获取最后一个时间步的logits
         logits = logits[:, -1, :]  # 形状 (B, vocab_size)
         # 计算概率分布
