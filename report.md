@@ -30,10 +30,10 @@ BPE算法 (Byte Pair Encoding) 是一种基于统计的方法，最初用于文�
 
 ## 【1分】学习使用huggingface transformers中的tokenizer，使用它加载GPT-2的tokenizer，然后使用它和你训练的tokenizer分别encode以下句子，比较两者的输出，简要解释长度上和具体token上不同的原因是什么。
 - 比较结果（具体代码见bpe/main.py）
-    - BPE Tokenizer for Sentence 1: ['O', 'r', 'i', 'g', 'i', 'n', 'a', 't', 'e', 'd'] Total tokens: 953
-    - GPT-2 Tokenizer for Sentence 1: [11610, 3898, 355, 262, 11773, 2059, 286, 350, 18754, 287] Total tokens: 185
-    - BPE Tokenizer for Sentence 2: ['博', '士', '学', '位', '论', '文', '应', '当', '表', '明'] Total tokens: 149
-    - GPT-2 Tokenizer for Sentence 2: [39355, 248, 18803, 27764, 99, 19526, 235, 164, 106, 118] Total tokens: 306
+    - BPE Tokenizer for Sentence 1: Total tokens: 953
+    - GPT-2 Tokenizer for Sentence 1: Total tokens: 185
+    - BPE Tokenizer for Sentence 2: Total tokens: 149
+    - GPT-2 Tokenizer for Sentence 2: Total tokens: 306
 - 差异及原因
     - 长度差异
         - GPT-2的tokenizer是基于子词（subword）单元的，它会使用大量的预定义词汇表中的子词单元来表示输入句子。由于GPT-2的tokenizer已经有了大量的子词单元，它可能将一些常见的词（如Peking University、China等）映射为一个token，导致token数量较少。
