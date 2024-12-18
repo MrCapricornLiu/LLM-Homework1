@@ -119,3 +119,78 @@ LLM虽然是在预训练阶段通过大量的文本数据进行训练的，但�
 
 
 # 2. LLM Implementation（10分）
+
+
+# 2.1 Initial Commit: basic architecture of GPT-2
+
+## 2.1.2 实验过程
+
+本部分代码的主要目标是复现GPT-2模型的核心架构，包括因果自注意力机制、自注意力模块（CausalSelfAttention）、前馈神经网络（MLP）、Transformer块（Block）、GPT配置类（GPTConfig）、GPT模型主体（GPT）、模型加载与验证，以及文本生成过程。具体实现步骤如下：
+#### 因果自注意力机制（CausalSelfAttention）：
+
+- **实现因果自注意力**：确保模型在生成文本时只能关注当前词及其之前的词，避免未来信息泄露。
+- **线性投影**：通过线性层`c_attn`生成查询（Q）、键（K）、值（V）的投影。
+- **多头分割和重组**：将Q、K、V分割为多个头，并进行转置以适应多头计算。
+- **缩放点积注意力**：计算Q与K的点积，并进行缩放。
+- **应用遮罩**：使用下三角遮罩`bias`确保因果性，避免未来信息的影响。
+- **注意力权重计算**：通过softmax计算注意力权重，并与V相乘得到注意力输出。
+- **输出线性层**：通过`c_proj`线性层将多头输出重新组合。
+#### 前馈神经网络（MLP）：
+
+- **两层线性变换**：第一层将嵌入维度扩展到4倍，第二层将其缩回原始维度。
+- **GELU激活函数**：在两层线性变换之间应用GELU激活函数，增加模型的非线性表达能力。
+#### Transformer块（Block）：
+
+- **层归一化与残差连接**：每个Transformer块包含两次层归一化和残差连接，分别在自注意力和前馈神经网络之后，增强模型的稳定性和深度。
+- **集成自注意力与MLP**：结合CausalSelfAttention和MLP模块，形成标准的Transformer层。
+#### GPT配置类（GPTConfig）：
+
+- **配置参数定义**：使用`@dataclass`定义模型的配置参数，如词汇表大小、嵌入维度、层数、头数等，支持不同规模的GPT-2模型配置。
+#### GPT模型主体（GPT）：
+
+- **嵌入层**：包括词嵌入（wte）和位置嵌入（wpe）。
+- **多层Transformer块**：使用`ModuleList`构建多层Transformer块。
+- **最终层归一化**：在所有Transformer块之后应用层归一化。
+- **语言模型头**：通过线性层`lm_head`将嵌入维度转换为词汇表大小，输出logits。
+- **从预训练模型加载权重**：实现`from_pretrained`方法，从Hugging Face加载预训练的GPT-2模型权重，通过参数对齐和必要的权重转置，确保模型能够正确加载预训练权重。
+#### 模型加载与验证：
+
+- **设备检测**：自动检测并选择可用的计算设备（CPU、CUDA、MPS）。
+- **模型初始化**：加载预训练的GPT-2模型，并将其设置为评估模式。
+- **前缀token处理**：使用`tiktoken`库对输入文本进行编码，准备生成任务的输入。
+- **文本生成逻辑**：通过设置随机种子，使用top-k采样策略生成指定长度的文本序列，并打印生成结果。
+## 2.1.2 代码运行结果
+```
+使用设备: cuda
+> Hello, I'm a language model, scrubaliamut Zo retained Form deal nearbyESCODirectorchainslect.; homosexualityosukevision260 viewing HT interface paralyzedyo
+> Hello, I'm a language model, presidentoxy phones skulladiqulptFDreporting Godd startersclasslect ال beginnings eclipsformationpodcastpeer workshop competenceampionorbit
+> Hello, I'm a language model,593 SetTextColor fatalCVE RoryISSCaronomic fightershei radiationINSTwings396 Swords Cookadvert spe conjunction poemOV penetrating
+> Hello, I'm a language model,igslistNotes Preferred restaur Islands absor hikes Reef enclosure sprint enormous CentOS arises comprised discsormon Observatory� cookedrypt Estateete
+> Hello, I'm a language model,Auth aquPa amused�cks vert delegates`. bus patron.)430 reb.? bolts SU Jen confess Craigslist parked Ur
+```
+## 2.1.3 学习笔记
+#### 多头注意力机制：
+
+通过并行计算多个注意力头，模型能够捕捉序列中不同层次和不同方面的依赖关系。理解了如何通过线性变换分割和重组注意力头，以及如何通过拼接和线性层整合各头的信息。
+#### 因果遮罩的实现：
+
+使用下三角矩阵作为遮罩，确保在生成过程中模型只能关注当前及之前的位置，避免未来信息泄露。这是生成任务中保持生成因果性的关键。
+#### 参数迁移与对齐：
+
+在从预训练模型加载权重时，处理了参数名称和形状的不一致问题，如需要转置某些权重以匹配本地实现。这加深了对不同模型实现细节的理解，以及如何在不同框架或实现之间迁移权重。
+#### 模块化设计：
+
+通过将自注意力、MLP和Transformer块模块化，提升了代码的可读性和可维护性。同时，这种设计便于扩展和修改，适应不同规模或变种的GPT模型需求。
+## 2.1.4 存在的问题与解决方法：
+#### 权重转置问题：
+
+- **问题**：从Hugging Face加载的某些权重（如`attn.c_attn.weight`、`attn.c_proj.weight`、`mlp.c_fc.weight`、`mlp.c_proj.weight`）需要进行转置才能与本地实现匹配。
+- **解决方法**：在加载权重时，检查需要转置的权重名称，并在复制权重时应用转置操作，确保形状和数据正确对应。
+#### 参数键不匹配：
+
+- **问题**：在从预训练模型复制权重时，参数键的数量和名称可能存在不一致，导致加载失败。
+- **解决方法**：通过断言确保两个模型的参数键数量一致，并过滤掉不需要的缓冲区参数（如`.attn.bias`），确保只复制有效的权重参数。
+#### 配置灵活性：
+
+- **问题**：当前`GPTConfig`类虽然支持基本的配置参数，但对于更复杂的模型变体，可能需要更多的配置选项。
+- **解决方法**：扩展`GPTConfig`类，增加更多可配置的参数，如不同的激活函数选择、不同的层归一化方式等，以支持更广泛的模型需求。
